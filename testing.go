@@ -17,6 +17,8 @@ type T interface {
 	Fail()
 	FailNow()
 	Failed() bool
+	Log(args ...interface{})
+	Logf(format string, args ...interface{})
 }
 
 // RuntimeT implements T and can be instantiated and run at runtime to
@@ -57,4 +59,12 @@ func (t *RuntimeT) FailNow() {
 
 func (t *RuntimeT) Failed() bool {
 	return t.failed
+}
+
+func (t *RuntimeT) Log(args ...interface{}) {
+	log.Println(fmt.Sprintln(args...))
+}
+
+func (t *RuntimeT) Logf(format string, args ...interface{}) {
+	log.Println(fmt.Sprintf(format, args...))
 }
