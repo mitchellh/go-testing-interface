@@ -1,4 +1,9 @@
-// +build !go1.9
+// +build go1.9
+
+// NOTE: This is a temporary copy of testing.go for Go 1.9 with the addition
+// of "Helper" to the T interface. Go 1.9 at the time of typing is in RC
+// and is set for release shortly. We'll support this on master as the default
+// as soon as 1.9 is released.
 
 package testing
 
@@ -14,25 +19,20 @@ import (
 type T interface {
 	Error(args ...interface{})
 	Errorf(format string, args ...interface{})
+	Fatal(args ...interface{})
+	Fatalf(format string, args ...interface{})
 	Fail()
 	FailNow()
 	Failed() bool
-	Fatal(args ...interface{})
-	Fatalf(format string, args ...interface{})
+	Helper()
 	Log(args ...interface{})
 	Logf(format string, args ...interface{})
-	Name() string
-	Skip(args ...interface{})
-	SkipNow()
-	Skipf(format string, args ...interface{})
-	Skipped() bool
 }
 
 // RuntimeT implements T and can be instantiated and run at runtime to
 // mimic *testing.T behavior. Unlike *testing.T, this will simply panic
 // for calls to Fatal. For calls to Error, you'll have to check the errors
-// list to determine whether to exit yourself. Name and Skip methods are
-// unimplemented noops.
+// list to determine whether to exit yourself.
 type RuntimeT struct {
 	failed bool
 }
@@ -69,6 +69,8 @@ func (t *RuntimeT) Failed() bool {
 	return t.failed
 }
 
+func (t *RuntimeT) Helper() {}
+
 func (t *RuntimeT) Log(args ...interface{}) {
 	log.Println(fmt.Sprintln(args...))
 }
@@ -76,9 +78,3 @@ func (t *RuntimeT) Log(args ...interface{}) {
 func (t *RuntimeT) Logf(format string, args ...interface{}) {
 	log.Println(fmt.Sprintf(format, args...))
 }
-
-func (t *RuntimeT) Name() string                             { return "" }
-func (t *RuntimeT) Skip(args ...interface{})                 {}
-func (t *RuntimeT) SkipNow()                                 {}
-func (t *RuntimeT) Skipf(format string, args ...interface{}) {}
-func (t *RuntimeT) Skipped() bool                            { return false }
