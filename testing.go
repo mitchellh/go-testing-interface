@@ -22,6 +22,7 @@ type T interface {
 	Log(args ...interface{})
 	Logf(format string, args ...interface{})
 	Name() string
+	Parallel()
 	Skip(args ...interface{})
 	SkipNow()
 	Skipf(format string, args ...interface{})
@@ -33,6 +34,8 @@ type T interface {
 // for calls to Fatal. For calls to Error, you'll have to check the errors
 // list to determine whether to exit yourself. Name and Skip methods are
 // unimplemented noops.
+//
+// Parallel does not do anything.
 type RuntimeT struct {
 	failed bool
 }
@@ -77,8 +80,26 @@ func (t *RuntimeT) Logf(format string, args ...interface{}) {
 	log.Println(fmt.Sprintf(format, args...))
 }
 
-func (t *RuntimeT) Name() string                             { return "" }
-func (t *RuntimeT) Skip(args ...interface{})                 {}
-func (t *RuntimeT) SkipNow()                                 {}
-func (t *RuntimeT) Skipf(format string, args ...interface{}) {}
-func (t *RuntimeT) Skipped() bool                            { return false }
+func (t *RuntimeT) Name() string {
+	return ""
+}
+
+func (t *RuntimeT) Parallel() {}
+
+func (t *RuntimeT) Skip(args ...interface{}) {
+	log.Print(args...)
+	t.SkipNow()
+}
+
+func (t *RuntimeT) SkipNow() {
+	t.skipped = true
+}
+
+func (t *RuntimeT) Skipf(format string, args ...interface{}) {
+	log.Printf(format, args...)
+	t.SkipNow()
+}
+
+func (t *RuntimeT) Skipped() bool {
+	return t.skipped
+}
