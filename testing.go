@@ -36,7 +36,8 @@ type T interface {
 //
 // Parallel does not do anything.
 type RuntimeT struct {
-	failed bool
+	failed  bool
+	skipped bool
 }
 
 func (t *RuntimeT) Error(args ...interface{}) {
