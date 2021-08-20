@@ -29,6 +29,7 @@ type T interface {
 	Logf(format string, args ...interface{})
 	Name() string
 	Parallel()
+	Setenv(key string, value string)
 	Skip(args ...interface{})
 	SkipNow()
 	Skipf(format string, args ...interface{})
@@ -55,6 +56,7 @@ type TB interface {
 	Log(args ...interface{})
 	Logf(format string, args ...interface{})
 	Name() string
+	Setenv(key string, value string)
 	Skip(args ...interface{})
 	SkipNow()
 	Skipf(format string, args ...interface{})
@@ -77,11 +79,13 @@ type RuntimeT struct {
 	mu          sync.RWMutex // guards this group of fields
 	skipped     bool
 	failed      bool
+	isEnvSet    bool
+	isParallel  bool
 	tempDirOnce sync.Once
 	tempDir     string
 	tempDirErr  error
 	tempDirSeq  int32
-	cleanup     func()    // optional function to be called at the end of the test
+	cleanups    []func()  // optional functions to be called at the end of the test
 	cleanupName string    // Name of the cleanup function.
 	cleanupPc   []uintptr // The stack trace at the point where Cleanup was called.
 }
@@ -134,7 +138,37 @@ func (t *RuntimeT) Name() string {
 	return ""
 }
 
-func (t *RuntimeT) Parallel() {}
+func (t *RuntimeT) Parallel() {
+	if t.isEnvSet {
+		panic("t.Parallel called after t.Setenv; cannot set environment variables in parallel tests")
+	}
+
+	t.isParallel = true
+}
+
+func (t *RuntimeT) Setenv(key string, value string) {
+	if t.isParallel {
+		panic("t.Setenv called after t.Parallel; cannot set environment variables in parallel tests")
+	}
+
+	t.isEnvSet = true
+
+	prevValue, ok := os.LookupEnv(key)
+
+	if err := os.Setenv(key, value); err != nil {
+		t.Fatalf("cannot set environment variable: %v", err)
+	}
+
+	if ok {
+		t.Cleanup(func() {
+			os.Setenv(key, prevValue)
+		})
+	} else {
+		t.Cleanup(func() {
+			os.Unsetenv(key)
+		})
+	}
+}
 
 func (t *RuntimeT) Skip(args ...interface{}) {
 	log.Print(args...)
@@ -202,28 +236,31 @@ func (t *RuntimeT) Helper() {}
 //
 // This logic is copied from the standard go library
 func (t *RuntimeT) Cleanup(f func()) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	oldCleanup := t.cleanup
-	oldCleanupPc := t.cleanupPc
-	t.cleanup = func() {
-		if oldCleanup != nil {
-			defer func() {
-				t.mu.Lock()
-				t.cleanupPc = oldCleanupPc
-				t.mu.Unlock()
-				oldCleanup()
-			}()
-		}
-		t.mu.Lock()
-		t.cleanupName = callerName(0)
-		t.mu.Unlock()
-		f()
-	}
 	var pc [maxStackLen]uintptr
 	// Skip two extra frames to account for this function and runtime.Callers itself.
 	n := runtime.Callers(2, pc[:])
-	t.cleanupPc = pc[:n]
+	cleanupPc := pc[:n]
+
+	fn := func() {
+		defer func() {
+			t.mu.Lock()
+			defer t.mu.Unlock()
+			t.cleanupName = ""
+			t.cleanupPc = nil
+		}()
+
+		name := callerName(0)
+		t.mu.Lock()
+		t.cleanupName = name
+		t.cleanupPc = cleanupPc
+		t.mu.Unlock()
+
+		f()
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.cleanups = append(t.cleanups, fn)
 }
 
 // callerName gives the function name (qualified with a package path)

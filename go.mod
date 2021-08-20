@@ -1,3 +1,3 @@
 module github.com/mitchellh/go-testing-interface
 
-go 1.14
+go 1.17
